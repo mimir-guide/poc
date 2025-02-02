@@ -5,9 +5,11 @@ build/
 dist/
 wheels/
 *.egg-info
+.mypy_cache
 
 # Virtual environments
 .venv
 
 # Environments
 .env
+.streamlit/secrets.toml

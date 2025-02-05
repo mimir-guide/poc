@@ -1,10 +1,22 @@
 import streamlit as st
 from google.cloud import vision
-from PIL import Image, ImageDraw, ImageFont
+from pydantic import BaseModel, Field
+from pydantic_ai import Agent, RunContext
+from pydantic_ai.models.gemini import GeminiModel
 import os
 import hmac
+from dataclasses import dataclass
+import nest_asyncio
+
+nest_asyncio.apply()
 
 st.title("Mimir POC")
+
+GCP_API_KEY = os.getenv("GCP_API_KEY")
+
+if GCP_API_KEY is None:
+    st.error("API_KEY not set")
+    st.stop()
 
 
 def check_password():
@@ -40,33 +52,78 @@ image_file = st.file_uploader(
 )
 
 
-if image_file is not None:
-    client = vision.ImageAnnotatorClient(
-        client_options={"api_key": os.environ["GCP_API_KEY"]}
+@dataclass
+class NarrativeFeature:
+    landmark: str
+    language: str
+
+
+class Narrative(BaseModel):
+    story: str = Field(description="The story about the landmark")
+
+
+def get_agent(api_key: str):
+    model = GeminiModel("gemini-2.0-flash-exp", api_key=api_key)
+    agent = Agent(
+        model=model,
+        deps_type=NarrativeFeature,
+        result_type=Narrative,
+        system_prompt="""
+        You are a tour guide. You are telling the user about the history of the given landmark.
+        You should tell the history in the manner of a story, and you can mix in a little bit of fiction.
+        The goal is to teach the user about some history, while keep it entertaining.
+        Keep the story short.""",
     )
 
-    image = vision.Image(content=image_file.read())
-    response: vision.AnnotateImageResponse = client.landmark_detection(image=image)
+    @agent.system_prompt
+    def get_landmark(ctx: RunContext[NarrativeFeature]) -> str:
+        return f"The landmark is {ctx.deps.landmark!r}."
 
-    with Image.open(image_file) as annotated_image:
-        draw = ImageDraw.Draw(annotated_image)
+    @agent.system_prompt
+    def get_language(ctx: RunContext[NarrativeFeature]) -> str:
+        return f"The story should be told in {ctx.deps.language!r}."
+
+    return agent
+
+
+def main(api_key: str):
+    if image_file is not None:
+        client = vision.ImageAnnotatorClient(client_options={"api_key": api_key})
+
+        image = vision.Image(content=image_file.read())
+        response: vision.AnnotateImageResponse = client.landmark_detection(image=image)
+
+        st.image(image_file, use_container_width=True)
+
         for landmark in response.landmark_annotations:
-            polygon = [
-                (vertex.x, vertex.y) for vertex in landmark.bounding_poly.vertices
-            ]
-            draw.polygon(
-                xy=polygon,
-                width=3,
-                outline="red",
+            message = f"""
+            ### {landmark.description} ({landmark.score:.3f})\n
+
+            ({landmark.locations[0].lat_lng.latitude:.4f}, {landmark.locations[0].lat_lng.longitude:.4f})
+
+            ---
+            """
+
+            st.markdown(message)
+
+        if len(response.landmark_annotations) >= 1:
+            agent = get_agent(api_key)
+            st.warning("Select the values below slowly between selections")
+            landmark = st.selectbox(
+                "Landmark",
+                [landmark.description for landmark in response.landmark_annotations],
             )
-            st.write(landmark.description)
-            st.write(landmark.score)
-            location = landmark.locations[0].lat_lng
-            font = ImageFont.load_default(size=annotated_image.width // 32)
-            draw.text(
-                xy=polygon[0],
-                text=f"{landmark.description}\n{landmark.score:.3f}\n({location.latitude:.4f}, {location.longitude:.4f})",
-                fill="red",
-                font=font,
+            language = st.selectbox(
+                "Language", ["English", "Finnish", "Swedish", "Vietnamese", "Japanese"]
             )
-        st.image(annotated_image, use_container_width=True)
+
+            deps = NarrativeFeature(
+                landmark=landmark,
+                language=language,
+            )
+            result = agent.run_sync("Tell me about this landmark.", deps=deps)
+            st.write(result.data.story)
+
+
+if __name__ == "__main__":
+    main(GCP_API_KEY)

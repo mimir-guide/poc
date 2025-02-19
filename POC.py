@@ -1,12 +1,13 @@
+import hmac
+import os
+from dataclasses import dataclass
+
+import nest_asyncio
 import streamlit as st
-from google.cloud import vision
+from google.cloud import texttospeech as tts, vision
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.models.gemini import GeminiModel
-import os
-import hmac
-from dataclasses import dataclass
-import nest_asyncio
 
 nest_asyncio.apply()
 
@@ -45,6 +46,15 @@ def check_password():
 
 if not check_password():
     st.stop()
+
+__LANGUAGES__ = ["English", "Finnish", "Swedish", "Vietnamese", "Japanese"]
+__LANGUAGE_CODES__ = {
+    "English": "en-US",
+    "Finnish": "fi-FI",
+    "Swedish": "sv-SE",
+    "Vietnamese": "vi-VN",
+    "Japanese": "ja-JP",
+}
 
 image_file = st.file_uploader(
     label="Upload image",
@@ -88,10 +98,11 @@ def get_agent(api_key: str):
 
 def main(api_key: str):
     if image_file is not None:
-        client = vision.ImageAnnotatorClient(client_options={"api_key": api_key})
+        vision_client = vision.ImageAnnotatorClient(client_options={"api_key": api_key})
+        tts_client = tts.TextToSpeechClient(client_options={"api_key": api_key})
 
         image = vision.Image(content=image_file.read())
-        response: vision.AnnotateImageResponse = client.landmark_detection(image=image)
+        response: vision.AnnotateImageResponse = vision_client.landmark_detection(image=image)
 
         st.image(image_file, use_container_width=True)
 
@@ -114,7 +125,7 @@ def main(api_key: str):
                 [landmark.description for landmark in response.landmark_annotations],
             )
             language = st.selectbox(
-                "Language", ["English", "Finnish", "Swedish", "Vietnamese", "Japanese"]
+                "Language", __LANGUAGES__
             )
 
             deps = NarrativeFeature(
@@ -122,7 +133,24 @@ def main(api_key: str):
                 language=language,
             )
             result = agent.run_sync("Tell me about this landmark.", deps=deps)
+            voices = tts_client.list_voices(language_code=__LANGUAGE_CODES__[language])
+            voice_name = st.selectbox("Voice", [voice.name for voice in voices.voices])
+
             st.write(result.data.story)
+
+            tts_response = tts_client.synthesize_speech(
+                input=tts.SynthesisInput(text=result.data.story),
+                voice=tts.VoiceSelectionParams(
+                    language_code=__LANGUAGE_CODES__[language],
+                    name=voice_name,
+                ),
+                audio_config=tts.AudioConfig(audio_encoding=tts.AudioEncoding.LINEAR16)
+            )
+            st.audio(
+                data=tts_response.audio_content,
+                format="audio/wav",
+                autoplay=True
+            )
 
 
 if __name__ == "__main__":

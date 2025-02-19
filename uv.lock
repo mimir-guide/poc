@@ -267,6 +267,21 @@ wheels = [
 ]
 
 [[package]]
+name = "google-cloud-texttospeech"
+version = "2.25.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "google-api-core", extra = ["grpc"] },
+    { name = "google-auth" },
+    { name = "proto-plus" },
+    { name = "protobuf" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8b/14/a0f0a789c14eeca6b8c86ea8808b2169a9a623209b61b3b2118d30a71fc0/google_cloud_texttospeech-2.25.0.tar.gz", hash = "sha256:776e70b58385c8c34b8425c7adb27e946a858377c227b95153315d75263c1e23", size = 177989 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7e/f9/2cc3831068747fadc9125ab5c92986834bc35b1c865c487bf802ef7c4b31/google_cloud_texttospeech-2.25.0-py2.py3-none-any.whl", hash = "sha256:5066b486111d450aedf49a84824c7699fd3ce7fbc56a416c358f9cde25e82c90", size = 186679 },
+]
+
+[[package]]
 name = "google-cloud-vision"
 version = "3.10.0"
 source = { registry = "https://pypi.org/simple" }
@@ -560,6 +575,7 @@ name = "mimir-poc"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "google-cloud-texttospeech" },
     { name = "google-cloud-vision" },
     { name = "nest-asyncio" },
     { name = "pillow" },
@@ -575,6 +591,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "google-cloud-texttospeech", specifier = ">=2.25.0" },
     { name = "google-cloud-vision", specifier = ">=3.9.0" },
     { name = "nest-asyncio", specifier = ">=1.6.0" },
     { name = "pillow", specifier = ">=11.1.0" },

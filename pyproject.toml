@@ -11,6 +11,7 @@ dependencies = [
     "streamlit>=1.41.1",
     "pillow>=11.1.0",
     "nest-asyncio>=1.6.0",
+    "google-cloud-texttospeech>=2.25.0",
 ]
 
 [dependency-groups]

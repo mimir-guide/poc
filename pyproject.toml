@@ -1,20 +1,17 @@
 [project]
 name = "mimir-poc"
-version = "0.1.0"
+version = "0.2.0"
 description = "Proof of concept for Mimir travel companion app"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "google-cloud-vision>=3.9.0",
-    "pydantic-ai>=0.0.21",
-    "pydantic>=2.10.6",
+    "pydantic-ai>=0.0.46",
+    "pydantic>=2.11.0",
     "streamlit>=1.41.1",
     "pillow>=11.1.0",
     "nest-asyncio>=1.6.0",
-    "google-cloud-texttospeech>=2.25.0",
+    "google-cloud-texttospeech<=2.25.0",
 ]
 
 [dependency-groups]
-dev = [
-    "ruff>=0.9.4",
-]
+dev = ["ruff>=0.9.4"]

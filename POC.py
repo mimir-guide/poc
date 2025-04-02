@@ -1,9 +1,10 @@
 import os
 from typing import List, Self
+from dataclasses import dataclass
 
 import streamlit as st
 from pydantic import BaseModel, Field, model_validator
-from pydantic_ai import Agent, BinaryContent
+from pydantic_ai import Agent, BinaryContent, RunContext
 from google.cloud import texttospeech as tts
 from PIL import Image, ImageDraw
 import nest_asyncio
@@ -12,6 +13,15 @@ nest_asyncio.apply()
 
 st.title("Mimir POC")
 GCP_API_KEY = os.getenv("GCP_API_KEY")
+
+language = st.selectbox(
+    "Language", ["English", "Finnish", "Swedish", "Spanish", "Chinese", "Vietnamese"]
+)
+
+
+@dataclass
+class DepContext:
+    lang: str
 
 
 class BoundingBox(BaseModel):
@@ -53,8 +63,28 @@ class Naratives(BaseModel):
     naratives: List[Narative] = Field(..., description="A list of detected landmarks")
 
 
+language_codes = {
+    "English": "en-US",
+    "Finnish": "fi-FI",
+    "Swedish": "sv-SE",
+    "Spanish": "es-ES",
+    "Chinese": "zh-CN",
+    "Vietnamese": "vi-VN",
+}
+
+voices = {
+    "English": "en-US-Chirp3-HD-Aoede",
+    "Finnish": "fi-FI-Standard-A",
+    "Swedish": "sv-SE-Standard-A",
+    "Spanish": "es-ES-Chirp3-HD-Aoede",
+    "Chinese": "cmn-CN-Chirp3-HD-Aoede",
+    "Vietnamese": "vi-VN-Chirp3-HD-Aoede",
+}
+
+
 geo_agent = Agent(
     model="google-gla:gemini-2.0-flash",
+    deps_type=DepContext,
     result_type=Naratives,
     system_prompt="""
     You are a geolocation expert.
@@ -69,6 +99,12 @@ geo_agent = Agent(
     """,
 )
 
+
+@geo_agent.system_prompt
+def set_language(ctx: RunContext[DepContext]) -> str:
+    return f"The language for the narrative is {ctx.deps.lang}."
+
+
 tts_client = tts.TextToSpeechClient(client_options={"api_key": GCP_API_KEY})
 
 image = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
@@ -78,7 +114,8 @@ if image is not None:
         [
             "Tell me about the landmarks in this image. Locate the bounding boxes of the landmarks.",
             BinaryContent(image.read(), media_type="image/png"),
-        ]
+        ],
+        deps=DepContext(lang=language),
     )
 
     with Image.open(image) as pil_image:
@@ -98,8 +135,8 @@ if image is not None:
         tts_response = tts_client.synthesize_speech(
             input=tts.SynthesisInput(text=landmark.story),
             voice=tts.VoiceSelectionParams(
-                language_code="en-US",
-                name="en-US-Chirp3-HD-Aoede",
+                language_code=language_codes[language],
+                name=voices[language],
             ),
             audio_config=tts.AudioConfig(audio_encoding=tts.AudioEncoding.LINEAR16),
         )

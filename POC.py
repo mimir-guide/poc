@@ -138,6 +138,6 @@ if image is not None:
                 language_code=language_codes[language],
                 name=voices[language],
             ),
-            audio_config=tts.AudioConfig(audio_encoding=tts.AudioEncoding.LINEAR16),
+            audio_config=tts.AudioConfig(audio_encoding=tts.AudioEncoding.OGG_OPUS),
         )
         st.audio(data=tts_response.audio_content, format="audio/wav", autoplay=i == 0)
